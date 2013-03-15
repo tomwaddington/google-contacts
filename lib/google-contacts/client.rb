@@ -239,7 +239,7 @@ module GContacts
     end
     
     def set_image(element, filename)
-      result = http_request(:put, URI.parse("https://www.google.com/m8/feeds/photos/media/default/#{element.google_id}"), :body => File.read(filename), :headers => {"Content-Type" => "image/#{image_type(filename)}", "If-Match" => "*", "Slug" => File.basename(filename), "Content-Length" => File.read(filename).size.to_s, "Expect" => "100-continue"})
+      result = http_request(:put, URI.parse("https://www.google.com/m8/feeds/photos/media/default/#{element.google_id}"), :body => open(filename, "rb") {|io| io.read }, :headers => {"Content-Type" => "image/#{image_type(filename)}", "If-Match" => "*", "Slug" => File.basename(filename), "Content-Length" => File.size(filename).to_s, "Expect" => "100-continue"})
       
       response = Nori.new(:parser => :nokogiri).parse(result)
 
@@ -310,7 +310,7 @@ module GContacts
       token = @options[:access_token]
       headers = args[:headers] || {}
       headers["GData-Version"] = "3.0"
-
+      
       if token.is_a?(String)
         request_uri = query_string ? "#{uri.request_uri}?#{query_string}" : uri.request_uri
         headers["Authorization"] = "Bearer #{@options[:access_token]}"
@@ -318,7 +318,7 @@ module GContacts
         http = Net::HTTP.new(uri.host, uri.port)
         http.set_debug_output(@options[:debug_output]) if @options[:debug_output]
         http.use_ssl = true
-  
+        
         if @options[:verify_ssl]
           http.verify_mode = OpenSSL::SSL::VERIFY_PEER
         else
