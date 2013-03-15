@@ -3,7 +3,7 @@ require 'net/http'
 module GContacts
   class Element
     attr_accessor :title, :content, :data, :category, :etag, :group_id, :name, :email
-    attr_reader :id, :edit_uri, :modifier_flag, :updated, :batch, :photo_uri, :phones
+    attr_reader :id, :edit_uri, :modifier_flag, :updated, :batch, :photo_uri, :phones, :google_id
     
     ##
     # Creates a new element by parsing the returned entry from Google
@@ -14,6 +14,14 @@ module GContacts
       return unless entry
 
       @id, @updated, @content, @title, @etag, @name, @email = entry["id"], entry["updated"], entry["content"], entry["title"], entry["@gd:etag"], entry["gd:name"], entry["gd:email"]
+      
+      # Find the google id which is the last part of the @id url
+      if @id
+        @google_id = @id[/\/[^\/]*$/]
+        if @google_id
+          @google_id.gsub!("/", "")
+        end
+      end
       
       @photo_uri = nil
       if entry["category"]

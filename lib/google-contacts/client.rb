@@ -239,7 +239,15 @@ module GContacts
     end
     
     def set_image(element, filename)
-      result = http_request(:put, URI.parse("https://www.google.com/m8/feeds/photos/media/default/#{element.id}"), :body => File.read(filename), :headers => {"Content-Type" => "image/#{image_type(filename)}", "If-Match" => "*", "Slug" => File.basename(filename), "Content-Length" => File.read(filename).size.to_s, "Expect" => "100-continue"})
+      result = http_request(:put, URI.parse("https://www.google.com/m8/feeds/photos/media/default/#{element.google_id}"), :body => File.read(filename), :headers => {"Content-Type" => "image/#{image_type(filename)}", "If-Match" => "*", "Slug" => File.basename(filename), "Content-Length" => File.read(filename).size.to_s, "Expect" => "100-continue"})
+      
+      response = Nori.new(:parser => :nokogiri).parse(result)
+
+      if response and response["entry"]
+        Element.new(response["entry"])
+      else
+        nil
+      end
     end
 
     private

@@ -11,7 +11,7 @@ describe GContacts::Client do
       
       mock_response("") do |http_mock, res_mock|
         res_mock.stub(:code).and_return("200")
-        http_mock.should_receive(:request_put).with("/m8/feeds/photos/media/default/#{element.id}", File.read("spec/responses/lena.jpg"), hash_including("Authorization" => "Bearer 12341234", "Content-Type" => "image/jpeg", "If-Match" => "*")).and_return(res_mock)
+        http_mock.should_receive(:request_put).with("/m8/feeds/photos/media/default/#{element.google_id}", File.read("spec/responses/lena.jpg"), hash_including("Authorization" => "Bearer 12341234", "Content-Type" => "image/jpeg", "If-Match" => "*")).and_return(res_mock)
       end
       
       client.set_image element, "spec/responses/lena.jpg"
