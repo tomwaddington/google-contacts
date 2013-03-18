@@ -3,40 +3,41 @@ require 'date'
 
 describe GContacts::Client do
   include Support::ResponseMock
-  
+  let(:parser) { Nori.new }
+
   context "client" do
     it "should send the correct request when updating an image" do
       client = GContacts::Client.new :access_token => "12341234"
       element = GContacts::Element.new(Nori.new(:parser => :nokogiri).parse(File.read("spec/responses/contacts/user_with_photo.xml"))["entry"])
-      
+
       mock_response("") do |http_mock, res_mock|
         res_mock.stub(:code).and_return("200")
-        http_mock.should_receive(:request_put).with("/m8/feeds/photos/media/default/#{element.google_id}", File.read("spec/responses/lena.jpg"), hash_including("Authorization" => "Bearer 12341234", "Content-Type" => "image/jpeg", "If-Match" => "*")).and_return(res_mock)
+        http_mock.should_receive(:request_put).with("/m8/feeds/photos/media/default/#{element.google_id}", open("spec/responses/lena.jpg", "rb") {|io| io.read }, hash_including("Authorization" => "Bearer 12341234", "Content-Type" => "image/jpeg", "If-Match" => "*")).and_return(res_mock)
       end
-      
+
       client.set_image element, "spec/responses/lena.jpg"
     end
   end
-  
+
   context "oauth" do
     it "should refresh the token" do
       mock_response(File.read("spec/responses/oauth/refresh_token.json")) do |http_mock, res_mock|
         http_mock.should_receive(:request_post).with("/o/oauth2/token", "client_id=client_id&client_secret=client_secret&refresh_token=refresh_token&grant_type=refresh_token", hash_including("Authorization" => "Bearer 12341234")).and_return(res_mock)
       end
-      
+
       client = GContacts::Client.new(:access_token => "12341234")
       client.refresh_token! "client_id", "client_secret", "refresh_token"
       client.options[:access_token].should == "refreshed_token"
       client.options[:expires_at].should >= DateTime.now
     end
   end
-  
+
   it "should detect a wrong auth token" do
     mock_response("") do |http_mock, res_mock|
       res_mock.stub(:code).and_return("401")
       http_mock.should_receive(:request_get).with("/m8/feeds/contacts/default/full?max-results=1", hash_including("Authorization" => "Bearer 12341234")).and_return(res_mock)
     end
-    
+
     client = GContacts::Client.new(:access_token => "12341234")
     client.valid_token?.should be_false
   end
@@ -67,6 +68,8 @@ describe GContacts::Client do
       contact.edit_uri.should == URI("https://www.google.com/m8/feeds/contacts/john.doe%40gmail.com/full/fd8fb1a55f2916e")
       contact.etag.should == '"OWUxNWM4MTEzZjEyZTVjZTQ1Mjgy."'
       contact.data.should ==  {"gd:name"=>[{"gd:fullName"=>"Steve Stephson", "gd:givenName"=>"Steve", "gd:familyName"=>"Stephson"}], "gd:email"=>[{"@rel"=>"http://schemas.google.com/g/2005#other", "@address"=>"steve.stephson@gmail.com", "@primary"=>"true"}, {"@rel"=>"http://schemas.google.com/g/2005#other", "@address"=>"steve@gmail.com"}], "gd:phoneNumber"=>[{"text"=>"3005004000", "@rel"=>"http://schemas.google.com/g/2005#mobile"}, {"text"=>"+130020003000", "@rel"=>"http://schemas.google.com/g/2005#work"}], "gContact:groupMembershipInfo"=>[{"@deleted"=>"false", "@href"=>"http://www.google.com/m8/feeds/groups/john.doe%40gmail.com/base/6"}]}
+      contact.emails.should == [{"type"=>"http://schemas.google.com/g/2005#other", "address"=>"steve.stephson@gmail.com"}, {"type"=>"http://schemas.google.com/g/2005#other", "address"=>"steve@gmail.com"} ]
+      contact.phones.should == [{"type"=>"http://schemas.google.com/g/2005#mobile", "number"=>"3005004000"}, {"type"=>"http://schemas.google.com/g/2005#work", "number"=>"+130020003000"}]
 
       contact = contacts[1]
       contact.id.should == "http://www.google.com/m8/feeds/contacts/john.doe%40gmail.com/base/894bc75ebb5187d"
@@ -83,6 +86,8 @@ describe GContacts::Client do
       contact.edit_uri.should == URI("https://www.google.com/m8/feeds/contacts/john.doe%40gmail.com/full/cd046ed518f0fb0")
       contact.etag.should == '"ZWVhMDQ0MWI0MWM0YTJkM2MzY2Zh."'
       contact.data.should == {"gd:name"=>[{"gd:fullName"=>"Dave \"Terry\" Pratchett", "gd:givenName"=>"Dave", "gd:additionalName"=>"\"Terry\"", "gd:familyName"=>"Pratchett"}], "gd:organization"=>[{"gd:orgName"=>"Foo Bar Inc", "@rel"=>"http://schemas.google.com/g/2005#work"}], "gd:email"=>[{"@rel"=>"http://schemas.google.com/g/2005#home", "@address"=>"dave.pratchett@gmail.com", "@primary"=>"true"}], "gd:phoneNumber"=>[{"text"=>"7003002000", "@rel"=>"http://schemas.google.com/g/2005#mobile"}], "gContact:groupMembershipInfo"=>[{"@deleted"=>"false", "@href"=>"http://www.google.com/m8/feeds/groups/john.doe%40gmail.com/base/6"}]}
+      contact.emails.should == [{"type"=>"http://schemas.google.com/g/2005#home", "address"=>"dave.pratchett@gmail.com"}]
+      contact.phones.should == [{"type"=>"http://schemas.google.com/g/2005#mobile", "number"=>"7003002000"}]
 
       contact = contacts[3]
       contact.id.should == "http://www.google.com/m8/feeds/contacts/john.doe%40gmail.com/base/a1941d3d13cdc66"
@@ -91,6 +96,8 @@ describe GContacts::Client do
       contact.edit_uri.should == URI("https://www.google.com/m8/feeds/contacts/john.doe%40gmail.com/full/a1941d3d13cdc66")
       contact.etag.should == '"Yzg3MTNiODJlMTRlZjZjN2EyOGRm."'
       contact.data.should == {"gd:name"=>[{"gd:fullName"=>"Jane Doe", "gd:givenName"=>"Jane", "gd:familyName"=>"Doe"}], "gd:email"=>[{"@rel"=>"http://schemas.google.com/g/2005#home", "@address"=>"jane.doe@gmail.com", "@primary"=>"true"}], "gd:phoneNumber"=>[{"text"=>"16004003000", "@rel"=>"http://schemas.google.com/g/2005#mobile"}], "gd:structuredPostalAddress"=>[{"gd:formattedAddress"=>"5 Market St\n        San Francisco\n        CA", "gd:street"=>"5 Market St", "gd:city"=>"San Francisco", "gd:region"=>"CA", "@rel"=>"http://schemas.google.com/g/2005#home"}], "gContact:groupMembershipInfo"=>[{"@deleted"=>"false", "@href"=>"http://www.google.com/m8/feeds/groups/john.doe%40gmail.com/base/6"}]}
+      contact.emails.should == [{"type"=>"http://schemas.google.com/g/2005#home", "address"=>"jane.doe@gmail.com"}]
+      contact.phones.should == [{"type"=>"http://schemas.google.com/g/2005#mobile", "number"=>"16004003000"}]
     end
 
     it "paginates through all" do
@@ -158,7 +165,7 @@ describe GContacts::Client do
     it "updates an existing one" do
       client = GContacts::Client.new(:access_token => "12341234")
 
-      element = GContacts::Element.new(Nori.new.parse(File.read("spec/responses/contacts/update.xml"))["entry"])
+      element = GContacts::Element.new(parser.parse(File.read("spec/responses/contacts/update.xml"))["entry"])
       element.title.should == 'Foo "Doe" Bar'
 
       mock_response(File.read("spec/responses/contacts/update.xml")) do |http_mock, res_mock|
@@ -176,7 +183,7 @@ describe GContacts::Client do
     it "deletes an existing one" do
       client = GContacts::Client.new(:access_token => "12341234")
 
-      element = GContacts::Element.new(Nori.new.parse(File.read("spec/responses/contacts/update.xml"))["entry"])
+      element = GContacts::Element.new(parser.parse(File.read("spec/responses/contacts/update.xml"))["entry"])
 
       mock_response(File.read("spec/responses/contacts/update.xml")) do |http_mock, res_mock|
         http_mock.should_receive(:request) do |request|
@@ -208,7 +215,7 @@ describe GContacts::Client do
           uri.should == "/m8/feeds/contacts/default/full/batch"
           headers.should include("Authorization" => "Bearer 12341234")
 
-          Nori.new.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#contact"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>"Bar Foo", "atom:title"=>"foo bar", "gd:name"=>{"gd:givenName"=>"foo bar"}, "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
+          parser.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#contact"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>"Bar Foo", "atom:title"=>"foo bar", "gd:name"=>{"gd:givenName"=>"foo bar"}, "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
 
           res_mock
         end
@@ -238,7 +245,7 @@ describe GContacts::Client do
           uri.should == "/m8/feeds/contacts/default/full/batch"
           headers.should include("Authorization" => "Bearer 12341234")
 
-          Nori.new.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#contact"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>"Bar Foo", "atom:title"=>"foo bar", "gd:name"=>{"gd:givenName"=>"foo bar"}, "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
+          parser.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#contact"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>"Bar Foo", "atom:title"=>"foo bar", "gd:name"=>{"gd:givenName"=>"foo bar"}, "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
 
           res_mock
         end
@@ -354,7 +361,7 @@ describe GContacts::Client do
     it "updates an existing one" do
       client = GContacts::Client.new(:access_token => "12341234")
 
-      element = GContacts::Element.new(Nori.new.parse(File.read("spec/responses/groups/update.xml"))["entry"])
+      element = GContacts::Element.new(parser.parse(File.read("spec/responses/groups/update.xml"))["entry"])
       element.title.should == "Bar Bar"
       element.content.should == "Bar Bar"
 
@@ -373,7 +380,7 @@ describe GContacts::Client do
     it "deletes an existing one" do
       client = GContacts::Client.new(:access_token => "12341234")
 
-      element = GContacts::Element.new(Nori.new.parse(File.read("spec/responses/groups/update.xml"))["entry"])
+      element = GContacts::Element.new(parser.parse(File.read("spec/responses/groups/update.xml"))["entry"])
 
       mock_response(File.read("spec/responses/groups/update.xml")) do |http_mock, res_mock|
         http_mock.should_receive(:request) do |request|
@@ -404,7 +411,7 @@ describe GContacts::Client do
           uri.should == "/m8/feeds/groups/default/full/batch"
           headers.should include("Authorization" => "Bearer 12341234")
 
-          Nori.new.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#group"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>"Bar Foo", "atom:title"=>"foo bar", "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
+          parser.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#group"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>"Bar Foo", "atom:title"=>"foo bar", "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
 
           res_mock
         end
@@ -431,7 +438,7 @@ describe GContacts::Client do
           uri.should == "/m8/feeds/groups/default/full/batch"
           headers.should include("Authorization" => "Bearer 12341234")
 
-          Nori.new.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#group"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>{"@type"=>"text"}, "atom:title"=>nil, "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
+          parser.parse(data).should == {"feed"=>{"atom:entry"=>{"batch:id"=>"create", "batch:operation"=>{"@type"=>"insert"}, "atom:category"=>{"@scheme"=>"http://schemas.google.com/g/2005#kind", "@term"=>"http://schemas.google.com/g/2008#group"}, "updated"=>DateTime.parse("2012-04-06T06:02:04+00:00"), "atom:content"=>{"@type"=>"text"}, "atom:title"=>nil, "@xmlns:atom"=>"http://www.w3.org/2005/Atom", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008"}, "@xmlns"=>"http://www.w3.org/2005/Atom", "@xmlns:gContact"=>"http://schemas.google.com/contact/2008", "@xmlns:gd"=>"http://schemas.google.com/g/2005", "@xmlns:batch"=>"http://schemas.google.com/gdata/batch"}}
 
           res_mock
         end

@@ -2,9 +2,9 @@ require 'net/http'
 
 module GContacts
   class Element
-    attr_accessor :title, :content, :data, :category, :etag, :group_id, :name, :email
-    attr_reader :id, :edit_uri, :modifier_flag, :updated, :batch, :photo_uri, :phones, :google_id
-    
+    attr_accessor :title, :content, :data, :category, :etag, :group_id, :name, :email, :emails
+    attr_reader :id, :edit_uri, :google_id, :modifier_flag, :updated, :batch, :photo_uri, :phones
+
     ##
     # Creates a new element by parsing the returned entry from Google
     # @param [Hash, Optional] entry Hash representation of the XML returned from Google
@@ -80,17 +80,44 @@ module GContacts
 
       @phones = []
       if entry["gd:phoneNumber"].is_a?(Array)
-        entry["gd:phoneNumber"].each do |phone|
-          new_phone = {}
-          new_phone['number'] = phone
-          unless phone.attributes['rel'].nil?
-            new_phone['type'] = phone.attributes['rel']
-          else
-            new_phone['type'] = phone.attributes['label']
-          end
+        nodes = entry["gd:phoneNumber"]
+      elsif !entry["gd:phoneNumber"].nil?
+        nodes = [entry["gd:phoneNumber"]]
+      else
+        nodes = []
+      end
 
-          @phones << new_phone
+      nodes.each do |phone|
+        new_phone = {}
+        new_phone['number'] = phone
+        unless phone.attributes['rel'].nil?
+          new_phone['type'] = phone.attributes['rel']
+        else
+          new_phone['type'] = phone.attributes['label']
         end
+
+        @phones << new_phone
+      end
+
+      @emails = []
+      if entry["gd:email"].is_a?(Array)
+        nodes = entry["gd:email"]
+      elsif !entry["gd:email"].nil?
+        nodes = [entry["gd:email"]]
+      else
+        nodes = []
+      end
+
+      nodes.each do |email|
+        new_email = {}
+        new_email['address'] = email['@address']
+        unless email['@rel'].nil?
+          new_email['type'] = email['@rel']
+        else
+          new_email['type'] = email['@label']
+        end
+
+        @emails << new_email
       end
     end
 
