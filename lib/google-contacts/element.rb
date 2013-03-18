@@ -120,6 +120,44 @@ module GContacts
         @emails << new_email
       end
     end
+    
+    ##
+    # Merges another contact into the current one. If a field is present in 
+    # both elements, then the value of this element is replaced by the value
+    # of the passed element. Excluded from this replacement is the photo.
+    def merge(other)
+      # ----- gContact namespace
+      # Non repeatable overwrite the current data
+      %w{gContact:billingInformation gContact:birthday gContact:directoryServer
+         gContact:gender gContact:initials gContact:maidenName gContact:mileage
+         gContact:nickname gContact:occupation gContact:priority
+         gContact:sensitivity gContact:shortName gContact:subject
+         gContact:systemGroup gd:content gd:where gd:name}.each do |key|
+        if other.data.has_key? key
+          @data[key] = other.data[key]
+        end
+      end
+      
+      # Repeatable elements
+      %w{gContact:calendarLink gContact:event gContact:externalId 
+         gContact:groupMembershipInfo gContact:hobby gContact:jot 
+         gContact:language gContact:relation gContact:userDefinedField 
+         gContact:website gd:category gd:link gd:email gd:extendedProperty
+         gd:im gd:organization gd:phoneNumber
+         gd:structuredPostalAddress}.each do |key|
+        if @data.has_key?(key) && other.data.has_key?(key)
+          # If other[key] specifies a primary element, remove primary attribute
+          primary_specified = other.data[key].keep_if{|i| i.is_a?(Hash) && i.has_key?("@primary")}.count > 0
+          if primary_specified
+            @data[key].map{|i| i.delete("@primary")}
+          end
+          @data[key] += other.data[key]
+          @data[key].uniq!
+        elsif other.data.has_key? key
+          @data[key] = other.data[key]
+        end
+      end
+    end
 
     ##
     # Converts the entry into XML to be sent to Google

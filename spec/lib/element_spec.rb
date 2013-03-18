@@ -2,6 +2,15 @@ require "spec_helper"
 
 describe GContacts::Element do
   let(:parser) { Nori.new }
+  
+  it "merges correctly" do
+    first = GContacts::Element.new(parser.parse(File.read("spec/responses/contacts/merge1.xml"))["entry"])
+    second = GContacts::Element.new(parser.parse(File.read("spec/responses/contacts/merge2.xml"))["entry"])
+    merged = GContacts::Element.new(parser.parse(File.read("spec/responses/contacts/merged.xml"))["entry"])
+    
+    first.merge(second)
+    first.to_xml.should == merged.to_xml
+  end
 
   it "changes modifier flags" do
     element = GContacts::Element.new
