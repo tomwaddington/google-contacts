@@ -257,7 +257,7 @@ module GContacts
        #when /^\x89PNG/ then 'png'
        #when /^\xff\xd8\xff\xe0\x00\x10JFIF/ then 'jpeg'
        #when /^\xff\xd8\xff\xe1(.*){2}Exif/ then 'jpeg'
-       #when /^BM/ then 'bmp'
+       when /^BM/ then 'bmp'
       else 'unknown'
       end
     end
